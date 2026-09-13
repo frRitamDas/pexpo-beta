@@ -35,6 +35,7 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -68,12 +69,7 @@ private val GlassSpring = spring<Float>(dampingRatio = 0.78f, stiffness = 360f)
 private const val STRETCH = 0.14f
 private const val SQUASH = 0.45f
 
-/**
- * Pexpo 1.6 navigation: a compact glass capsule with a spring-loaded active
- * indicator, drag navigation and lightweight press feedback. The transport
- * and page routing remain owned by MainActivity; this component owns only
- * navigation presentation and interaction.
- */
+/** Pexpo 1.6 navigation capsule with spring motion, swipe navigation and tactile press feedback. */
 @OptIn(ExperimentalHazeMaterialsApi::class)
 @Composable
 fun FloatingBottomBar(
@@ -84,7 +80,6 @@ fun FloatingBottomBar(
     modifier: Modifier = Modifier,
 ) {
     if (tabs.isEmpty()) return
-
     val pillShape = remember { RoundedCornerShape(percent = 50) }
     val container = MaterialTheme.colorScheme.surface
     val reduceDynamicBlur by AppSettings.reduceDynamicBlur.collectAsStateWithLifecycle()
@@ -101,21 +96,11 @@ fun FloatingBottomBar(
 
     val gapPx = with(density) { 6.dp.toPx() }
     val count = tabs.size
-    val tabWidthPx = if (rowSize.width > 0) {
-        (rowSize.width - gapPx * (count - 1)) / count
-    } else 0f
-    val tabStepPx = if (rowSize.width > 0) {
-        (rowSize.width + gapPx) / count
-    } else 0f
+    val tabWidthPx = if (rowSize.width > 0) (rowSize.width - gapPx * (count - 1)) / count else 0f
+    val tabStepPx = if (rowSize.width > 0) (rowSize.width + gapPx) / count else 0f
     val targetOffset = selectedIndex * tabStepPx + dragOffset
-    val animatedOffset by animateFloatAsState(
-        targetValue = targetOffset,
-        animationSpec = animationSpec,
-        label = "pexpo16NavIndicator",
-    )
-    val lag = if (tabStepPx > 0f) {
-        (abs(targetOffset - animatedOffset) / tabStepPx).coerceIn(0f, 1f)
-    } else 0f
+    val animatedOffset by animateFloatAsState(targetOffset, animationSpec, label = "pexpo16NavIndicator")
+    val lag = if (tabStepPx > 0f) (abs(targetOffset - animatedOffset) / tabStepPx).coerceIn(0f, 1f) else 0f
 
     LaunchedEffect(selectedIndex) {
         dragOffset = 0f
@@ -130,16 +115,9 @@ fun FloatingBottomBar(
             .fillMaxWidth()
             .clip(pillShape)
             .then(
-                if (reduceDynamicBlur) {
-                    Modifier.background(container)
-                } else if (useGlass) {
-                    Modifier.liquidGlass(shape = pillShape)
-                } else {
-                    Modifier.optimizedHazeEffect(
-                        state = hazeState,
-                        style = HazeMaterials.regular(container),
-                    )
-                },
+                if (reduceDynamicBlur) Modifier.background(container)
+                else if (useGlass) Modifier.liquidGlass(shape = pillShape)
+                else Modifier.optimizedHazeEffect(state = hazeState, style = HazeMaterials.regular(container)),
             )
             .border(GLASS_EDGE_WIDTH, GLASS_EDGE_COLOR, pillShape)
             .padding(horizontal = PILL_INSET, vertical = PILL_INSET),
@@ -192,8 +170,7 @@ fun FloatingBottomBar(
                             dragOffset = if (edgeResistance) totalDrag * 0.22f else totalDrag
                             if (tabStepPx > 0f) {
                                 val preview = (currentSelectedIndex + dragOffset / tabStepPx)
-                                    .coerceIn(0f, tabs.lastIndex.toFloat())
-                                    .roundToInt()
+                                    .coerceIn(0f, tabs.lastIndex.toFloat()).roundToInt()
                                 if (preview != lastHapticTab) {
                                     haptics.play(Haptic.Tick)
                                     lastHapticTab = preview
@@ -240,11 +217,8 @@ private fun BottomBarItem(
     )
     val haptics = rememberHaptics()
     val tint by animateColorAsState(
-        targetValue = if (selected) {
-            selectedTint ?: MaterialTheme.colorScheme.primary
-        } else {
-            unselectedTint ?: MaterialTheme.colorScheme.onSurfaceVariant
-        },
+        targetValue = if (selected) selectedTint ?: MaterialTheme.colorScheme.primary
+        else unselectedTint ?: MaterialTheme.colorScheme.onSurfaceVariant,
         animationSpec = tween(180),
         label = "pexpo16TabTint",
     )
@@ -263,12 +237,10 @@ private fun BottomBarItem(
             imageVector = tab.icon,
             contentDescription = tab.label,
             tint = tint,
-            modifier = Modifier
-                .size(25.dp)
-                .graphicsLayer {
-                    scaleX = scale
-                    scaleY = scale
-                },
+            modifier = Modifier.size(25.dp).graphicsLayer {
+                scaleX = scale
+                scaleY = scale
+            },
         )
         Spacer(Modifier.height(TAB_ICON_LABEL_GAP))
         Text(
