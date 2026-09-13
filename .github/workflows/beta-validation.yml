@@ -34,8 +34,8 @@ jobs:
         run: |
           set -euo pipefail
           grep -F 'applicationId = "com.music.pexpo.beta"' app/build.gradle.kts
-          grep -F 'versionCode = 23' app/build.gradle.kts
-          grep -F 'versionName = "1.6.0-beta.2"' app/build.gradle.kts
+          grep -F 'versionCode = 24' app/build.gradle.kts
+          grep -F 'versionName = "1.6.1-beta.1"' app/build.gradle.kts
       - name: Verify no unsafe stream API calls
         shell: bash
         run: |
@@ -51,7 +51,7 @@ jobs:
       - name: Upload Dev Debug APK
         uses: actions/upload-artifact@v4
         with:
-          name: pexpo-1.6-beta.2-dev-debug
+          name: pexpo-1.6.1-beta.1-dev-debug
           path: app/build/outputs/apk/dev/debug/*.apk
 
   beta-release:
@@ -100,35 +100,35 @@ EOF
           test -s "$APK"
           AAPT=$(find "$ANDROID_HOME/build-tools" -type f -name aapt | sort -V | tail -1)
           BADGING=$("$AAPT" dump badging "$APK")
-          echo "$BADGING" | grep -F "package: name='com.music.pexpo.beta' versionCode='23' versionName='1.6.0-beta.2'" >/dev/null
+          echo "$BADGING" | grep -F "package: name='com.music.pexpo.beta' versionCode='24' versionName='1.6.1-beta.1'" >/dev/null
           keytool -printcert -jarfile "$APK" | grep -F 'Owner: CN=Pexpo Beta Temporary' >/dev/null
       - name: Prepare release assets
         shell: bash
         run: |
           set -euo pipefail
           mkdir -p release-assets
-          cp app/build/outputs/apk/prod/release/app-prod-universal-release.apk release-assets/pexpo-1.6.0-beta.2-universal.apk
-          cp app/build/outputs/apk/prod/release/app-prod-arm64-v8a-release.apk release-assets/pexpo-1.6.0-beta.2-arm64-v8a.apk
-          cp app/build/outputs/apk/prod/release/app-prod-armeabi-v7a-release.apk release-assets/pexpo-1.6.0-beta.2-armeabi-v7a.apk
-          cp app/build/outputs/apk/prod/release/app-prod-x86_64-release.apk release-assets/pexpo-1.6.0-beta.2-x86_64.apk
+          cp app/build/outputs/apk/prod/release/app-prod-universal-release.apk release-assets/pexpo-1.6.1-beta.1-universal.apk
+          cp app/build/outputs/apk/prod/release/app-prod-arm64-v8a-release.apk release-assets/pexpo-1.6.1-beta.1-arm64-v8a.apk
+          cp app/build/outputs/apk/prod/release/app-prod-armeabi-v7a-release.apk release-assets/pexpo-1.6.1-beta.1-armeabi-v7a.apk
+          cp app/build/outputs/apk/prod/release/app-prod-x86_64-release.apk release-assets/pexpo-1.6.1-beta.1-x86_64.apk
           sha256sum release-assets/*.apk > release-assets/SHA256SUMS.txt
       - name: Upload release APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: pexpo-1.6-beta.2-release
+          name: pexpo-1.6.1-beta.1-release
           path: release-assets/*
       - name: Publish public prerelease
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          gh release delete v1.6.0-beta.2 --yes --cleanup-tag 2>/dev/null || true
-          gh release create v1.6.0-beta.2 \
-            release-assets/pexpo-1.6.0-beta.2-universal.apk \
-            release-assets/pexpo-1.6.0-beta.2-arm64-v8a.apk \
-            release-assets/pexpo-1.6.0-beta.2-armeabi-v7a.apk \
-            release-assets/pexpo-1.6.0-beta.2-x86_64.apk \
+          gh release delete v1.6.1-beta.1 --yes --cleanup-tag 2>/dev/null || true
+          gh release create v1.6.1-beta.1 \
+            release-assets/pexpo-1.6.1-beta.1-universal.apk \
+            release-assets/pexpo-1.6.1-beta.1-arm64-v8a.apk \
+            release-assets/pexpo-1.6.1-beta.1-armeabi-v7a.apk \
+            release-assets/pexpo-1.6.1-beta.1-x86_64.apk \
             release-assets/SHA256SUMS.txt \
-            --title "Pexpo 1.6.0 Beta 2" \
-            --notes "Pexpo 1.6 Beta 2.\n\nThis build contains the first shipped 1.6 visual-system rollout: redesigned navigation capsule, spring selection motion, tactile press feedback, responsive design tokens and updated Material shapes. It remains based on the stable 1.5.7 playback baseline while the larger 1.6 feature set is being migrated screen-by-screen.\n\nThe beta uses application ID com.music.pexpo.beta and a CI-generated temporary signing key, so it installs beside production Pexpo. The production repository is not modified.\n\nValidation: DevDebug build, JVM tests, beta package/version identity and release APK signing identity.\n\nUniversal, arm64-v8a, armeabi-v7a and x86_64 APKs plus SHA-256 checksums are attached." \
+            --title "Pexpo 1.6.1 Beta 1" \
+            --notes "Pexpo 1.6.1 Beta 1.\n\nThis is an in-place beta update over the same isolated package ID com.music.pexpo.beta. Install it over an existing Pexpo beta without uninstalling the beta first. Production Pexpo remains com.music.pexpo and is untouched.\n\nValidation: DevDebug build, JVM tests, beta package/version identity and release APK signing identity.\n\nUniversal, arm64-v8a, armeabi-v7a and x86_64 APKs plus SHA-256 checksums are attached." \
             --prerelease
