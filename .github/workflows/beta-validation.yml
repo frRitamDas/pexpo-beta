@@ -8,7 +8,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 concurrency:
   group: pexpo-1-6-beta-${{ github.ref }}
@@ -22,7 +22,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Set up JDK 17
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: '17'
@@ -36,3 +36,49 @@ jobs:
 
       - name: Run JVM tests
         run: ./gradlew test --stacktrace
+
+  beta-release:
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+    needs: validate
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout beta
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: gradle
+
+      - name: Grant Gradle execute permission
+        run: chmod +x gradlew
+
+      - name: Build installable production-flavor beta APK
+        run: ./gradlew assembleProdDebug --stacktrace
+
+      - name: Locate and checksum universal APK
+        shell: bash
+        run: |
+          set -euo pipefail
+          apk="$(find app/build/outputs/apk -type f -name '*universal*.apk' | sort | head -n 1)"
+          if [[ -z "$apk" ]]; then
+            apk="$(find app/build/outputs/apk -type f -name '*.apk' | sort | head -n 1)"
+          fi
+          test -n "$apk"
+          cp "$apk" "pexpo-1.6.0-beta.1.apk"
+          sha256sum "pexpo-1.6.0-beta.1.apk" > "pexpo-1.6.0-beta.1.apk.sha256"
+
+      - name: Publish public prerelease
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          gh release delete v1.6.0-beta.1 --yes --cleanup-tag 2>/dev/null || true
+          gh release create v1.6.0-beta.1 \
+            "pexpo-1.6.0-beta.1.apk" \
+            "pexpo-1.6.0-beta.1.apk.sha256" \
+            --title "Pexpo 1.6.0 Beta 1" \
+            --notes "Pexpo 1.6 Beta 1.\n\nIsolated beta build from the 1.6-beta branch. The production repository is not modified by this release.\n\nValidation gates: DevDebug build and JVM test suite.\nThe APK uses the production application ID with the GitHub Actions debug signing key so it can be installed for beta testing." \
+            --prerelease
