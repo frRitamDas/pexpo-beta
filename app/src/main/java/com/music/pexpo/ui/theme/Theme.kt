@@ -7,6 +7,7 @@ import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.material3.Typography
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.SideEffect
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalView
@@ -17,9 +18,9 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.sp
 import com.music.pexpo.R
+import com.music.pexpo.ui.v16.LocalPexpo16DesignSystem
+import com.music.pexpo.ui.v16.Pexpo16Defaults
 
-// Apple Music's signature red. No longer the primary accent, but kept for the
-// spots (Replay's rank badge) that want that specific red regardless of theme.
 val AccentRed = Color(0xFFFA2D48)
 
 private val DarkColors = darkColorScheme(
@@ -46,11 +47,6 @@ private val LightColors = lightColorScheme(
     outline = Color(0xFFE5E5EA),
 )
 
-/**
- * SF Pro Display, the face Apple Music itself is set in. Only the weights the
- * type scale actually asks for are bundled; Compose synthesises nothing, so a
- * missing weight would silently fall back to the nearest one shipped.
- */
 val SFProDisplay = FontFamily(
     Font(R.font.sf_pro_display_regular, FontWeight.W400),
     Font(R.font.sf_pro_display_medium, FontWeight.W500),
@@ -59,7 +55,6 @@ val SFProDisplay = FontFamily(
     Font(R.font.sf_pro_display_heavy, FontWeight.W800),
 )
 
-// Heavy, tight typography — the backbone of the Apple Music look.
 private val PexpoTypography = Typography(
     displayLarge = TextStyle(fontWeight = FontWeight.W800, fontSize = 34.sp, letterSpacing = (-0.8).sp),
     headlineLarge = TextStyle(fontWeight = FontWeight.W800, fontSize = 30.sp, letterSpacing = (-0.7).sp),
@@ -72,7 +67,6 @@ private val PexpoTypography = Typography(
     labelSmall = TextStyle(fontWeight = FontWeight.W600, fontSize = 11.sp),
 ).withFamily(SFProDisplay)
 
-/** Applies [family] to every style in the scale, so nothing is left on Roboto. */
 private fun Typography.withFamily(family: FontFamily) = Typography(
     displayLarge = displayLarge.copy(fontFamily = family),
     displayMedium = displayMedium.copy(fontFamily = family),
@@ -96,23 +90,15 @@ fun PexpoTheme(
     darkTheme: Boolean = isSystemInDarkTheme(),
     content: @Composable () -> Unit,
 ) {
-    MaterialTheme(
-        colorScheme = if (darkTheme) DarkColors else LightColors,
-        typography = PexpoTypography,
-        content = content,
-    )
+    CompositionLocalProvider(LocalPexpo16DesignSystem provides Pexpo16Defaults.designSystem) {
+        MaterialTheme(
+            colorScheme = if (darkTheme) DarkColors else LightColors,
+            typography = PexpoTypography,
+            content = content,
+        )
+    }
 }
 
-/**
- * Draws the status and navigation bar glyphs dark or light.
- *
- * `enableEdgeToEdge()` decides this from the *system* dark-mode setting, which
- * is the wrong input the moment the in-app theme disagrees with it: Light theme
- * on a phone in dark mode left white icons on a white bar, invisible. The bars
- * have to follow the theme the app is actually painting — with one exception,
- * the player, which is dark artwork regardless and so always wants light
- * glyphs. Hence a parameter rather than reading the theme here.
- */
 @Composable
 fun SystemBarIcons(dark: Boolean) {
     val view = LocalView.current
