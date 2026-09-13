@@ -1,0 +1,38 @@
+name: Pexpo 1.6 Beta Validation
+
+on:
+  push:
+    branches: [1.6-beta]
+  pull_request:
+    branches: [1.6-beta]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pexpo-1-6-beta-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout beta
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: gradle
+
+      - name: Grant Gradle execute permission
+        run: chmod +x gradlew
+
+      - name: Build Dev Debug APK
+        run: ./gradlew clean assembleDevDebug --stacktrace
+
+      - name: Run JVM tests
+        run: ./gradlew test --stacktrace
