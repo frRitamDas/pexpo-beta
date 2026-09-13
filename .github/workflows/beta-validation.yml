@@ -1,6 +1,8 @@
 name: Pexpo 1.6 Beta Validation
 
 on:
+  push:
+    branches: [1.6-beta]
   pull_request:
     branches: [1.6-beta]
     types: [opened, synchronize, reopened, closed]
@@ -54,7 +56,7 @@ jobs:
           path: app/build/outputs/apk/dev/debug/*.apk
 
   beta-release:
-    if: github.event_name == 'workflow_dispatch' || (github.event_name == 'pull_request' && github.event.action == 'closed' && github.event.pull_request.merged == true)
+    if: github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref == 'refs/heads/1.6-beta') || (github.event_name == 'pull_request' && github.event.action == 'closed' && github.event.pull_request.merged == true)
     needs: validate
     runs-on: ubuntu-latest
     timeout-minutes: 35
