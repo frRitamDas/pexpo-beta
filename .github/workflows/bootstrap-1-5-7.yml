@@ -9,7 +9,6 @@ permissions:
 
 jobs:
   bootstrap:
-    if: github.event.head_commit.message != 'chore: initialize Pexpo 1.5.7 beta baseline'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout beta repository
@@ -18,6 +17,10 @@ jobs:
       - name: Copy exact Pexpo 1.5.7 source snapshot
         run: |
           set -euo pipefail
+          if [ "${{ github.event.head_commit.message }}" = "chore: initialize Pexpo 1.5.7 beta baseline" ]; then
+            echo "Baseline already initialized."
+            exit 0
+          fi
           SOURCE_SHA=761c3f27265717260fa97ecab17a0d65092b42bd
           git clone --no-tags https://github.com/frRitamDas/bitmuse.git /tmp/pexpo-source
           cd /tmp/pexpo-source
@@ -25,11 +28,13 @@ jobs:
           git checkout --detach "$SOURCE_SHA"
           cd -
           rsync -a --delete --exclude='.git' /tmp/pexpo-source/ ./
-          rm -f .git/refs/remotes/origin/HEAD 2>/dev/null || true
 
       - name: Commit exact 1.5.7 baseline
         run: |
           set -euo pipefail
+          if [ "${{ github.event.head_commit.message }}" = "chore: initialize Pexpo 1.5.7 beta baseline" ]; then
+            exit 0
+          fi
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add -A
