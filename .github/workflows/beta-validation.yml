@@ -70,29 +70,30 @@ jobs:
           cache: gradle
       - name: Grant Gradle execute permission
         run: chmod +x gradlew
-      - name: Create temporary beta signing key
+      - name: Require persistent beta signing secrets
         shell: bash
+        env:
+          BETA_KEYSTORE_BASE64: ${{ secrets.BETA_KEYSTORE_BASE64 }}
+          BETA_STORE_PASSWORD: ${{ secrets.BETA_STORE_PASSWORD }}
+          BETA_KEY_ALIAS: ${{ secrets.BETA_KEY_ALIAS }}
+          BETA_KEY_PASSWORD: ${{ secrets.BETA_KEY_PASSWORD }}
         run: |
           set -euo pipefail
-          keytool -genkeypair -v \
-            -keystore beta-temp.jks \
-            -storetype JKS \
-            -alias pexpo-beta-temp \
-            -keyalg RSA \
-            -keysize 2048 \
-            -validity 30 \
-            -storepass beta-temp-store \
-            -keypass beta-temp-key \
-            -dname "CN=Pexpo Beta Temporary, OU=Beta, O=Pexpo, L=Kolkata, ST=West Bengal, C=IN"
-          cat > keystore.properties <<'EOF'
-storeFile=beta-temp.jks
-storePassword=beta-temp-store
-keyAlias=pexpo-beta-temp
-keyPassword=beta-temp-key
+          test -n "$BETA_KEYSTORE_BASE64" || { echo 'Missing BETA_KEYSTORE_BASE64 repository secret.' >&2; exit 1; }
+          test -n "$BETA_STORE_PASSWORD" || { echo 'Missing BETA_STORE_PASSWORD repository secret.' >&2; exit 1; }
+          test -n "$BETA_KEY_ALIAS" || { echo 'Missing BETA_KEY_ALIAS repository secret.' >&2; exit 1; }
+          test -n "$BETA_KEY_PASSWORD" || { echo 'Missing BETA_KEY_PASSWORD repository secret.' >&2; exit 1; }
+          printf '%s' "$BETA_KEYSTORE_BASE64" | base64 --decode > beta-signing.jks
+          test -s beta-signing.jks
+          cat > keystore.properties <<EOF
+storeFile=beta-signing.jks
+storePassword=$BETA_STORE_PASSWORD
+keyAlias=$BETA_KEY_ALIAS
+keyPassword=$BETA_KEY_PASSWORD
 EOF
       - name: Build isolated signed beta APKs
         run: ./gradlew clean assembleProdRelease --stacktrace
-      - name: Verify APK package, version and signature identity
+      - name: Verify APK package, version and signing certificate
         shell: bash
         run: |
           set -euo pipefail
@@ -101,7 +102,14 @@ EOF
           AAPT=$(find "$ANDROID_HOME/build-tools" -type f -name aapt | sort -V | tail -1)
           BADGING=$("$AAPT" dump badging "$APK")
           echo "$BADGING" | grep -F "package: name='com.music.pexpo.beta' versionCode='24' versionName='1.6.1-beta.1'" >/dev/null
-          keytool -printcert -jarfile "$APK" | grep -F 'Owner: CN=Pexpo Beta Temporary' >/dev/null
+          APK_CERT=$(keytool -printcert -jarfile "$APK" | sed -n 's/^Owner: //p')
+          KEY_CERT=$(keytool -list -v -keystore beta-signing.jks -storepass "$BETA_STORE_PASSWORD" -alias "$BETA_KEY_ALIAS" | sed -n 's/^Owner: //p' | head -1)
+          test -n "$APK_CERT"
+          test -n "$KEY_CERT"
+          test "$APK_CERT" = "$KEY_CERT"
+        env:
+          BETA_STORE_PASSWORD: ${{ secrets.BETA_STORE_PASSWORD }}
+          BETA_KEY_ALIAS: ${{ secrets.BETA_KEY_ALIAS }}
       - name: Prepare release assets
         shell: bash
         run: |
@@ -130,5 +138,5 @@ EOF
             release-assets/pexpo-1.6.1-beta.1-x86_64.apk \
             release-assets/SHA256SUMS.txt \
             --title "Pexpo 1.6.1 Beta 1" \
-            --notes "Pexpo 1.6.1 Beta 1.\n\nThis is an in-place beta update over the same isolated package ID com.music.pexpo.beta. Install it over an existing Pexpo beta without uninstalling the beta first. Production Pexpo remains com.music.pexpo and is untouched.\n\nValidation: DevDebug build, JVM tests, beta package/version identity and release APK signing identity.\n\nUniversal, arm64-v8a, armeabi-v7a and x86_64 APKs plus SHA-256 checksums are attached." \
+            --notes "Pexpo 1.6.1 Beta 1.\n\nThis beta uses the fixed package ID com.music.pexpo.beta and the persistent beta signing identity. Future 1.6.x beta APKs can update this installation in place without uninstalling. Production Pexpo remains com.music.pexpo and is untouched.\n\nUniversal, arm64-v8a, armeabi-v7a and x86_64 APKs plus SHA-256 checksums are attached." \
             --prerelease
