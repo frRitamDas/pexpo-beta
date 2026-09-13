@@ -1,5 +1,11 @@
 package com.music.pexpo.ui.screens
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.slideInVertically
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -19,12 +25,15 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.Add
+import androidx.compose.material.icons.rounded.LibraryMusic
+import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -43,35 +52,26 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.Folder
-import androidx.compose.material.icons.rounded.LibraryMusic
-import com.music.pexpo.ui.icons.PexpoIcons
-import com.music.pexpo.R
 import coil3.compose.AsyncImage
+import com.music.pexpo.R
 import com.music.pexpo.data.model.CARD_ART_PX
 import com.music.pexpo.data.model.HEADER_ART_PX
 import com.music.pexpo.data.model.HomeShelf
 import com.music.pexpo.data.model.ShelfItem
 import com.music.pexpo.data.model.UiState
 import com.music.pexpo.data.model.artworkAt
-import com.music.pexpo.ui.components.HERO_CARD_RATIO
 import com.music.pexpo.ui.components.MessageState
 import com.music.pexpo.ui.components.PAGE_GUTTER
 import com.music.pexpo.ui.components.PullToRefresh
 import com.music.pexpo.ui.components.SHELF_CARD_WIDTH
 import com.music.pexpo.ui.components.SignInBanner
-import com.music.pexpo.ui.components.feedMoreSkeleton
-import com.music.pexpo.ui.components.feedSkeleton
-import com.music.pexpo.ui.components.recentlyPlayedSkeleton
-import com.music.pexpo.ui.components.heroCardWidth
 import com.music.pexpo.ui.components.thumbnailBorder
-import com.music.pexpo.ui.player.MeshGradientBackground
-import com.music.pexpo.ui.player.MeshPalette
+import com.music.pexpo.ui.icons.PexpoIcons
 
-@OptIn(ExperimentalMaterial3Api::class)
+/** Pexpo 1.6 Home: intentionally rebuilt around a stronger visual hierarchy. */
 @Composable
 fun HomeScreen(
     state: UiState<List<HomeShelf>>,
@@ -86,59 +86,40 @@ fun HomeScreen(
     title: String,
     signedIn: Boolean = true,
     onSignIn: (() -> Unit)? = null,
-    /**
-     * Holding a card rather than tapping it. Every card on the feed answers,
-     * whichever kind it is: the caller reads the item the same way it does for
-     * a tap, so a track card opens the track menu and a card that points at a
-     * collection opens the album / playlist one.
-     */
     onItemLongPress: ((ShelfItem) -> Unit)? = null,
-    // Explore doesn't page — only Home has a continuation worth following.
     onLoadMore: (() -> Unit)? = null,
     loadingMore: Boolean = false,
     recentlyPlayedLoading: Boolean = false,
 ) {
-    PullToRefresh(
-        refreshing = refreshing,
-        onRefresh = onRefresh,
-        state = pullState,
-        modifier = modifier,
-    ) {
+    PullToRefresh(refreshing = refreshing, onRefresh = onRefresh, state = pullState, modifier = modifier) {
         LazyColumn(
             state = listState,
             modifier = Modifier.fillMaxSize(),
             contentPadding = contentPadding,
+            verticalArrangement = Arrangement.spacedBy(2.dp),
         ) {
-            item {
-                Text(
-                    text = title,
-                    style = MaterialTheme.typography.displayLarge,
-                    color = MaterialTheme.colorScheme.onBackground,
-                    modifier = Modifier.padding(horizontal = PAGE_GUTTER, vertical = 8.dp),
-                )
-            }
+            item { HomeHero(title = title, signedIn = signedIn) }
             if (!signedIn && onSignIn != null) {
-                item {
-                    SignInBanner(onSignIn = onSignIn, modifier = Modifier.padding(bottom = 8.dp))
-                }
+                item { SignInBanner(onSignIn = onSignIn, modifier = Modifier.padding(bottom = 10.dp)) }
             }
             when (state) {
-                is UiState.Loading -> feedSkeleton()
+                is UiState.Loading -> item { HomeLoading() }
                 is UiState.Error -> item {
                     MessageState(state.message, actionLabel = stringResource(R.string.retry), onAction = onRetry)
                 }
                 is UiState.Success -> {
-                    if (recentlyPlayedLoading) recentlyPlayedSkeleton()
-                    // The loading skeleton already owns the hero slot. Until
-                    // Recently Played lands, every real shelf must retain its
-                    // compact-card layout instead of briefly becoming a hero.
-                    itemsIndexedShelves(
-                        shelves = state.data,
-                        onItemClick = onItemClick,
-                        onItemLongPress = onItemLongPress,
-                        firstIsHero = !recentlyPlayedLoading,
-                    )
-                    if (loadingMore) feedMoreSkeleton()
+                    if (recentlyPlayedLoading) item { HomeLoading() }
+                    state.data.forEachIndexed { index, shelf ->
+                        item(key = "v16-shelf-$index-${shelf.title}") {
+                            V16Shelf(
+                                shelf = shelf,
+                                featured = index == 0,
+                                onItemClick = onItemClick,
+                                onItemLongPress = onItemLongPress,
+                            )
+                        }
+                    }
+                    if (loadingMore) item { HomeLoading() }
                 }
             }
         }
@@ -146,184 +127,175 @@ fun HomeScreen(
 
     if (onLoadMore != null && state is UiState.Success) {
         val loadMore by rememberUpdatedState(onLoadMore)
-        // Re-checked on every layout change, rather than on the rising edge of
-        // "the tail is in view". A page that appends only a shelf or two leaves
-        // the list still near its end, so an edge-triggered effect would never
-        // fire a second time: the feed dead-ended at the bottom with no
-        // skeleton and no request in flight to explain it. Restarting on
-        // [loadingMore] re-checks the moment a page settles, so the next one is
-        // asked for while the tail is still on screen to show it loading.
         LaunchedEffect(listState, loadingMore) {
             snapshotFlow {
-                val layout = listState.layoutInfo
-                (layout.visibleItemsInfo.lastOrNull()?.index ?: -1) to layout.totalItemsCount
-            }.collect { (lastVisible, total) ->
-                if (!loadingMore && total > 0 && lastVisible >= total - 3) loadMore()
+                val info = listState.layoutInfo
+                info.visibleItemsInfo.lastOrNull()?.index to info.totalItemsCount
+            }.collect { (last, total) ->
+                if (!loadingMore && total > 0 && last != null && last >= total - 3) loadMore()
             }
         }
     }
 }
 
-/**
- * The lead shelf gets Apple's full-bleed treatment — near-page-width cards that
- * page sideways — and the rest fall back to the compact grid of square cards.
- */
-private fun androidx.compose.foundation.lazy.LazyListScope.itemsIndexedShelves(
-    shelves: List<HomeShelf>,
-    onItemClick: (ShelfItem) -> Unit,
-    onItemLongPress: ((ShelfItem) -> Unit)?,
-    firstIsHero: Boolean = true,
-) {
-    shelves.forEachIndexed { index, shelf ->
-        item(key = shelf.title + index) {
-            if (index == 0 && firstIsHero) {
-                HeroShelf(shelf = shelf, onItemClick = onItemClick, onItemLongPress = onItemLongPress)
-            } else {
-                Shelf(shelf = shelf, onItemClick = onItemClick, onItemLongPress = onItemLongPress)
-            }
-        }
-    }
-}
-
-/**
- * Shared by the home feed, Explore and Library so headings line up across tabs.
- *
- * [onShowAll] is only ever set on Library, whose rows stop at five cards
- * rather than running the shelf's whole length — see [LibraryGridShelf].
- * Home and Explore never pass it, so their heading is unchanged.
- */
 @Composable
-internal fun SectionHeader(title: String, subtitle: String = "", onShowAll: (() -> Unit)? = null) {
-    Row(
+private fun HomeHero(title: String, signedIn: Boolean) {
+    val visible by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
+    LaunchedEffect(Unit) { }
+    Box(
         modifier = Modifier
-            .padding(horizontal = PAGE_GUTTER, vertical = 10.dp)
-            .fillMaxWidth(),
-        verticalAlignment = Alignment.CenterVertically,
+            .fillMaxWidth()
+            .padding(horizontal = PAGE_GUTTER, vertical = 12.dp)
+            .clip(RoundedCornerShape(28.dp))
+            .background(
+                Brush.linearGradient(
+                    listOf(
+                        MaterialTheme.colorScheme.primary.copy(alpha = .28f),
+                        MaterialTheme.colorScheme.secondary.copy(alpha = .18f),
+                        MaterialTheme.colorScheme.surfaceVariant,
+                    ),
+                ),
+            )
+            .padding(horizontal = 22.dp, vertical = 24.dp),
     ) {
-        Column(Modifier.weight(1f)) {
+        Column {
+            Text(
+                text = if (signedIn) "Good to see you" else "Your music, your way",
+                style = MaterialTheme.typography.labelLarge,
+                color = MaterialTheme.colorScheme.primary,
+                fontWeight = FontWeight.SemiBold,
+            )
+            Spacer(Modifier.height(5.dp))
             Text(
                 text = title,
-                style = MaterialTheme.typography.headlineMedium,
-                color = MaterialTheme.colorScheme.onBackground,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
+                style = MaterialTheme.typography.displaySmall,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onSurface,
             )
-            if (subtitle.isNotBlank()) {
-                Text(
-                    text = subtitle,
-                    style = MaterialTheme.typography.titleMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-            }
-        }
-        if (onShowAll != null) {
+            Spacer(Modifier.height(8.dp))
             Text(
-                text = stringResource(R.string.show_all),
-                style = MaterialTheme.typography.titleSmall,
-                color = MaterialTheme.colorScheme.primary,
-                modifier = Modifier
-                    .clickable(onClick = onShowAll)
-                    .padding(start = 12.dp, top = 4.dp, bottom = 4.dp),
+                text = "Pick something you love and let Pexpo take it from there.",
+                style = MaterialTheme.typography.bodyLarge,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 2,
             )
         }
     }
 }
 
 @Composable
-private fun HeroShelf(
+private fun HomeLoading() {
+    Box(
+        Modifier
+            .fillMaxWidth()
+            .height(180.dp)
+            .padding(horizontal = PAGE_GUTTER, vertical = 8.dp)
+            .clip(RoundedCornerShape(22.dp))
+            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = .65f)),
+    )
+}
+
+@Composable
+private fun V16Shelf(
     shelf: HomeShelf,
+    featured: Boolean,
     onItemClick: (ShelfItem) -> Unit,
-    onItemLongPress: ((ShelfItem) -> Unit)? = null,
+    onItemLongPress: ((ShelfItem) -> Unit)?,
 ) {
-    Column(Modifier.padding(bottom = 26.dp)) {
+    Column(Modifier.padding(bottom = 20.dp)) {
         SectionHeader(shelf.title, shelf.subtitle)
-        // Measured rather than taken as a share of the parent, because the card
-        // has a ceiling as well as a fraction — see [heroCardWidth]. A fixed
-        // width is also the only one of the two the aspect ratio below can turn
-        // into a height, so the card keeps its shape however it was arrived at.
-        BoxWithConstraints {
-            val cardWidth = heroCardWidth(maxWidth)
+        if (featured) {
+            BoxWithConstraints {
+                val width = (maxWidth - PAGE_GUTTER * 2).coerceAtMost(390.dp)
+                LazyRow(
+                    contentPadding = PaddingValues(horizontal = PAGE_GUTTER),
+                    horizontalArrangement = Arrangement.spacedBy(14.dp),
+                ) {
+                    items(shelf.items) { item ->
+                        FeaturedCard(
+                            item = item,
+                            width = width,
+                            onClick = { onItemClick(item) },
+                            onLongPress = onItemLongPress?.let { { it(item) } },
+                        )
+                    }
+                }
+            }
+        } else {
             LazyRow(
-                state = rememberLazyListState(),
                 contentPadding = PaddingValues(horizontal = PAGE_GUTTER),
                 horizontalArrangement = Arrangement.spacedBy(14.dp),
             ) {
                 items(shelf.items) { item ->
-                    HeroCard(
-                        item = item,
-                        onClick = { onItemClick(item) },
-                        onLongPress = onItemLongPress?.let { { it(item) } },
-                        modifier = Modifier.width(cardWidth),
-                    )
+                    ShelfCard(item, { onItemClick(item) }, onItemLongPress?.let { { it(item) } })
                 }
             }
         }
     }
 }
 
-/** Big card: artwork with the caption laid over a scrim, as on Listen Now. */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun HeroCard(
+private fun FeaturedCard(
     item: ShelfItem,
+    width: androidx.compose.ui.unit.Dp,
     onClick: () -> Unit,
-    onLongPress: (() -> Unit)? = null,
-    modifier: Modifier = Modifier,
+    onLongPress: (() -> Unit)?,
 ) {
     Box(
-        modifier = modifier
-            .aspectRatio(HERO_CARD_RATIO)
-            .clip(RoundedCornerShape(18.dp))
-            .thumbnailBorder(RoundedCornerShape(18.dp))
+        Modifier
+            .width(width)
+            .aspectRatio(1.55f)
+            .clip(RoundedCornerShape(24.dp))
+            .thumbnailBorder(RoundedCornerShape(24.dp))
             .background(MaterialTheme.colorScheme.surfaceVariant)
             .combinedClickable(onClick = onClick, onLongClick = onLongPress),
     ) {
         AsyncImage(
             model = item.thumbnailUrl.artworkAt(HEADER_ART_PX),
-            contentDescription = null,
+            contentDescription = item.title,
             contentScale = ContentScale.Crop,
             modifier = Modifier.fillMaxSize(),
         )
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .align(Alignment.BottomStart)
-                .background(
-                    Brush.verticalGradient(
-                        listOf(Color.Transparent, Color.Black.copy(alpha = 0.78f)),
-                    ),
-                )
-                .padding(start = 16.dp, end = 16.dp, top = 34.dp, bottom = 14.dp),
-        ) {
-            Text(
-                text = item.title,
-                style = MaterialTheme.typography.titleLarge,
-                color = Color.White,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-            if (item.subtitle.isNotBlank()) {
-                Text(
-                    text = item.subtitle,
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = Color.White.copy(alpha = 0.72f),
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis,
-                )
-            }
+        Box(
+            Modifier
+                .fillMaxSize()
+                .background(Brush.verticalGradient(listOf(Color.Transparent, Color.Black.copy(alpha = .82f)))),
+        )
+        Column(Modifier.align(Alignment.BottomStart).padding(18.dp)) {
+            Text(item.title, style = MaterialTheme.typography.titleLarge, color = Color.White, fontWeight = FontWeight.Bold, maxLines = 2, overflow = TextOverflow.Ellipsis)
+            if (item.subtitle.isNotBlank()) Text(item.subtitle, style = MaterialTheme.typography.bodyMedium, color = Color.White.copy(alpha = .78f), maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
     }
 }
 
-/**
- * [leadingCard] rides at the head of the row, ahead of the content — the
- * Library tab's "New playlist" tile, which belongs among the playlists rather
- * than in a bar somewhere above them. [onItemLongPress] opens the album /
- * playlist menu, and is null only where a card points at something with no
- * track list behind it to act on.
- */
+@Composable
+internal fun SectionHeader(title: String, subtitle: String = "", onShowAll: (() -> Unit)? = null) {
+    Row(
+        Modifier.fillMaxWidth().padding(horizontal = PAGE_GUTTER, vertical = 9.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(Modifier.weight(1f)) {
+            Text(title, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            if (subtitle.isNotBlank()) Text(subtitle, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        }
+        if (onShowAll != null) Text("Show all", color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.labelLarge, modifier = Modifier.clickable(onClick = onShowAll).padding(8.dp))
+    }
+}
+
+@Composable
+internal fun SectionHeader(icon: ImageVector, title: String, subtitle: String = "", onShowAll: (() -> Unit)? = null) {
+    Row(Modifier.fillMaxWidth().padding(horizontal = PAGE_GUTTER, vertical = 9.dp), verticalAlignment = Alignment.CenterVertically) {
+        Icon(icon, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(22.dp))
+        Spacer(Modifier.width(10.dp))
+        Column(Modifier.weight(1f)) {
+            Text(title, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+            if (subtitle.isNotBlank()) Text(subtitle, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+        if (onShowAll != null) Text("Show all", color = MaterialTheme.colorScheme.primary, modifier = Modifier.clickable(onClick = onShowAll).padding(8.dp))
+    }
+}
+
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 internal fun Shelf(
@@ -332,70 +304,24 @@ internal fun Shelf(
     onItemLongPress: ((ShelfItem) -> Unit)? = null,
     leadingCard: (@Composable () -> Unit)? = null,
 ) {
-    Column(Modifier.padding(bottom = 26.dp)) {
+    Column(Modifier.padding(bottom = 20.dp)) {
         SectionHeader(shelf.title, shelf.subtitle)
-        LazyRow(
-            contentPadding = PaddingValues(horizontal = PAGE_GUTTER),
-            horizontalArrangement = Arrangement.spacedBy(14.dp),
-        ) {
-            leadingCard?.let { card -> item(key = "leading") { card() } }
-            items(shelf.items) { item ->
-                ShelfCard(
-                    item = item,
-                    onClick = { onItemClick(item) },
-                    onLongPress = onItemLongPress?.let { { it(item) } },
-                )
-            }
+        LazyRow(contentPadding = PaddingValues(horizontal = PAGE_GUTTER), horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+            leadingCard?.let { item(key = "leading") { it() } }
+            items(shelf.items) { song -> ShelfCard(song, { onItemClick(song) }, onItemLongPress?.let { { it(song) } }) }
         }
     }
 }
 
-/**
- * A card that isn't a thing yet — the dashed "New playlist" tile at the head
- * of the Library's playlist row, sized to sit in line with the covers beside
- * it rather than as a button bolted above them.
- */
 @Composable
-internal fun NewShelfCard(
-    icon: ImageVector,
-    label: String,
-    subtitle: String,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier.width(SHELF_CARD_WIDTH),
-) {
-    Column(
-        modifier = modifier.clickable(onClick = onClick),
-    ) {
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .aspectRatio(1f)
-                .clip(RoundedCornerShape(12.dp))
-                .background(MaterialTheme.colorScheme.surfaceVariant),
-            contentAlignment = Alignment.Center,
-        ) {
-            Icon(
-                imageVector = icon,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.size(34.dp),
-            )
+internal fun NewShelfCard(icon: ImageVector, label: String, subtitle: String, onClick: () -> Unit, modifier: Modifier = Modifier.width(SHELF_CARD_WIDTH)) {
+    Column(modifier.clickable(onClick = onClick)) {
+        Box(Modifier.fillMaxWidth().aspectRatio(1f).clip(RoundedCornerShape(16.dp)).background(MaterialTheme.colorScheme.surfaceVariant), contentAlignment = Alignment.Center) {
+            Icon(icon, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(34.dp))
         }
-        Spacer(Modifier.height(10.dp))
-        Text(
-            text = label,
-            style = MaterialTheme.typography.titleMedium,
-            color = MaterialTheme.colorScheme.onBackground,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-        )
-        Text(
-            text = subtitle,
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-        )
+        Spacer(Modifier.height(9.dp))
+        Text(label, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        Text(subtitle, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
     }
 }
 
@@ -406,102 +332,25 @@ internal fun ShelfCard(
     onClick: () -> Unit,
     onLongPress: (() -> Unit)? = null,
     modifier: Modifier = Modifier.width(SHELF_CARD_WIDTH),
-    /** Set on a Library playlist card that's in [AppSettings.pinnedPlaylists][com.music.pexpo.data.settings.AppSettings.pinnedPlaylists]. */
     isPinned: Boolean = false,
 ) {
-    Column(
-        modifier = modifier.combinedClickable(onClick = onClick, onLongClick = onLongPress),
-    ) {
-        when (item.browseId) {
-            "local:downloads" -> {
-                val palette = remember { MeshPalette(listOf(Color(0xFF1E3C72), Color(0xFF2A5298))) }
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .aspectRatio(1f)
-                        .clip(RoundedCornerShape(12.dp)),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    MeshGradientBackground(
-                        palette = palette,
-                        trackKey = "local:downloads",
-                        continuous = true,
-                        blurRadius = 24.dp,
-                    )
-                    Icon(
-                        imageVector = PexpoIcons.Download,
-                        contentDescription = null,
-                        tint = Color.White,
-                        modifier = Modifier.size(40.dp),
-                    )
-                }
-            }
-            "local:all" -> {
-                val palette = remember { MeshPalette(listOf(Color(0xFF134E5E), Color(0xFF71B280))) }
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .aspectRatio(1f)
-                        .clip(RoundedCornerShape(12.dp)),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    MeshGradientBackground(
-                        palette = palette,
-                        trackKey = "local:all",
-                        continuous = true,
-                        blurRadius = 24.dp,
-                    )
-                    Icon(
-                        imageVector = Icons.Rounded.LibraryMusic,
-                        contentDescription = null,
-                        tint = Color.White,
-                        modifier = Modifier.size(40.dp),
-                    )
-                }
-            }
-            else -> {
-                AsyncImage(
-                    model = item.thumbnailUrl.artworkAt(CARD_ART_PX),
-                    contentDescription = null,
-                    contentScale = androidx.compose.ui.layout.ContentScale.Crop,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .aspectRatio(1f)
-                        .clip(RoundedCornerShape(12.dp))
-                        .thumbnailBorder(RoundedCornerShape(12.dp))
-                        .background(MaterialTheme.colorScheme.surfaceVariant),
-                )
-            }
-        }
-        Spacer(Modifier.height(10.dp))
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically,
+    Column(modifier.combinedClickable(onClick = onClick, onLongClick = onLongPress)) {
+        Box(
+            Modifier.fillMaxWidth().aspectRatio(1f).clip(RoundedCornerShape(16.dp)).background(MaterialTheme.colorScheme.surfaceVariant),
         ) {
-            if (isPinned) {
-                Icon(
-                    imageVector = PexpoIcons.Pin,
-                    contentDescription = stringResource(R.string.pinned),
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.size(14.dp),
-                )
-                Spacer(Modifier.width(4.dp))
-            }
-            Text(
-                text = item.title,
-                style = MaterialTheme.typography.titleMedium,
-                color = MaterialTheme.colorScheme.onBackground,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.weight(1f, fill = false),
+            AsyncImage(
+                model = item.thumbnailUrl.artworkAt(CARD_ART_PX),
+                contentDescription = item.title,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier.fillMaxSize(),
             )
+            if (item.browseId == "local:downloads" || item.browseId == "local:all") {
+                Box(Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(Color.Transparent, Color.Black.copy(alpha = .62f)))))
+                Icon(PexpoIcons.Download, null, tint = Color.White, modifier = Modifier.align(Alignment.Center).size(34.dp))
+            }
         }
-        Text(
-            text = item.subtitle,
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-        )
+        Spacer(Modifier.height(9.dp))
+        Text(item.title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold, maxLines = 2, overflow = TextOverflow.Ellipsis)
+        if (item.subtitle.isNotBlank()) Text(item.subtitle, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
     }
 }
