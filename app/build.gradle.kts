@@ -25,7 +25,7 @@ android {
     compileSdk = 36
 
     defaultConfig {
-        applicationId = "com.music.pexpo"
+        applicationId = "com.music.pexpo.beta"
         minSdk = 26
         targetSdk = 36
         versionCode = 22
@@ -60,6 +60,8 @@ android {
         }
         create("prod") {
             dimension = "env"
+            applicationId = "com.music.pexpo.beta"
+            resValue("string", "app_name", "Pexpo Music Beta")
         }
     }
 
