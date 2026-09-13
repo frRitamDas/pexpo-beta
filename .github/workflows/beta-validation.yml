@@ -55,8 +55,29 @@ jobs:
       - name: Grant Gradle execute permission
         run: chmod +x gradlew
 
-      - name: Build installable production-flavor beta APK
-        run: ./gradlew assembleProdDebug --stacktrace
+      - name: Create temporary beta signing key
+        shell: bash
+        run: |
+          set -euo pipefail
+          keytool -genkeypair -v \
+            -keystore beta-temp.jks \
+            -storetype JKS \
+            -alias pexpo-beta-temp \
+            -keyalg RSA \
+            -keysize 2048 \
+            -validity 30 \
+            -storepass beta-temp-store \
+            -keypass beta-temp-key \
+            -dname "CN=Pexpo Beta Temporary, OU=Beta, O=Pexpo, L=Kolkata, ST=West Bengal, C=IN"
+          cat > keystore.properties <<'EOF'
+storeFile=beta-temp.jks
+storePassword=beta-temp-store
+keyAlias=pexpo-beta-temp
+keyPassword=beta-temp-key
+EOF
+
+      - name: Build isolated signed beta APK
+        run: ./gradlew clean assembleProdRelease --stacktrace
 
       - name: Locate and checksum universal APK
         shell: bash
@@ -80,5 +101,5 @@ jobs:
             "pexpo-1.6.0-beta.1.apk" \
             "pexpo-1.6.0-beta.1.apk.sha256" \
             --title "Pexpo 1.6.0 Beta 1" \
-            --notes "Pexpo 1.6 Beta 1.\n\nIsolated beta build from the 1.6-beta branch. The production repository is not modified by this release.\n\nValidation gates: DevDebug build and JVM test suite.\nThe APK uses the production application ID with the GitHub Actions debug signing key so it can be installed for beta testing." \
+            --notes "Pexpo 1.6 Beta 1.\n\nThis is an isolated beta build from the 1.6-beta branch. The production repository is not modified by this release.\n\nValidation gates: DevDebug build and JVM test suite.\nThe beta package ID is com.music.pexpo.beta, so it installs beside the production Pexpo app. The release APK is signed with a temporary CI-generated beta key and is not intended as a long-term signing identity." \
             --prerelease
