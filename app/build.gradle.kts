@@ -28,7 +28,7 @@ android {
         applicationId = "com.music.pexpo.beta"
         minSdk = 26
         targetSdk = 36
-        versionCode = 24
+        versionCode = 25
         versionName = "1.6.1-beta.1"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         buildConfigField("String", "LASTFM_API_KEY", "\"${lastfmApiKey.replace("\\", "\\\\").replace("\"", "\\\"")}\"")
@@ -94,14 +94,10 @@ android {
         compose = true
         buildConfig = true
     }
-    testOptions {
-        unitTests { isReturnDefaultValues = true }
-    }
+    testOptions { unitTests { isReturnDefaultValues = true } }
 }
 
-kotlin {
-    compilerOptions { jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17) }
-}
+kotlin { compilerOptions { jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17) } }
 
 val newPipeExtractorRaw: Configuration by configurations.creating {
     isTransitive = false
