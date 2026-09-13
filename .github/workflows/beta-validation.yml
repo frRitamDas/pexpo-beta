@@ -1,14 +1,10 @@
 name: Pexpo 1.6 Beta Validation
 
 on:
-  push:
-    branches: [1.6-beta]
   pull_request:
     branches: [1.6-beta]
+    types: [opened, synchronize, reopened, closed]
   workflow_dispatch:
-
-permissions:
-  contents: write
 
 concurrency:
   group: pexpo-1-6-beta-${{ github.ref }}
@@ -16,8 +12,11 @@ concurrency:
 
 jobs:
   validate:
+    if: github.event_name == 'workflow_dispatch' || github.event.action != 'closed'
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    permissions:
+      contents: read
     steps:
       - name: Checkout beta
         uses: actions/checkout@v4
@@ -55,13 +54,17 @@ jobs:
           path: app/build/outputs/apk/dev/debug/*.apk
 
   beta-release:
-    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+    if: github.event_name == 'workflow_dispatch' || (github.event_name == 'pull_request' && github.event.action == 'closed' && github.event.pull_request.merged == true)
     needs: validate
     runs-on: ubuntu-latest
     timeout-minutes: 35
+    permissions:
+      contents: write
     steps:
-      - name: Checkout beta
+      - name: Checkout merged beta
         uses: actions/checkout@v4
+        with:
+          ref: 1.6-beta
       - name: Set up JDK 17
         uses: actions/setup-java@v5
         with:
@@ -95,6 +98,9 @@ EOF
         run: ./gradlew clean assembleProdRelease --stacktrace
       - name: Verify APK package, version and signing certificate
         shell: bash
+        env:
+          BETA_STORE_PASSWORD: ${{ secrets.BETA_STORE_PASSWORD }}
+          BETA_KEY_ALIAS: ${{ secrets.BETA_KEY_ALIAS }}
         run: |
           set -euo pipefail
           APK="app/build/outputs/apk/prod/release/app-prod-universal-release.apk"
@@ -107,9 +113,6 @@ EOF
           test -n "$APK_CERT"
           test -n "$KEY_CERT"
           test "$APK_CERT" = "$KEY_CERT"
-        env:
-          BETA_STORE_PASSWORD: ${{ secrets.BETA_STORE_PASSWORD }}
-          BETA_KEY_ALIAS: ${{ secrets.BETA_KEY_ALIAS }}
       - name: Prepare release assets
         shell: bash
         run: |
