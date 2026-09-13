@@ -151,7 +151,7 @@ object AppUpdateChecker {
         check(info.packageName == BuildConfig.APPLICATION_ID) { "The downloaded APK belongs to ${info.packageName}, not ${BuildConfig.APPLICATION_ID}." }
         check(info.longVersionCode > BuildConfig.VERSION_CODE) { "The downloaded APK is not newer than the installed Pexpo version." }
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-            val installed = context.packageManager.packageInfoForCurrentApp(PackageManager.GET_SIGNING_CERTIFICATES).signingInfo
+            val installed = context.packageManager.packageInfoForCurrentApp(PackageManager.GET_SIGNING_CERTIFICATES.toLong()).signingInfo
             val candidate = info.signingInfo
             check(installed != null && candidate != null && installed.apkContentsSigners.contentEquals(candidate.apkContentsSigners)) {
                 "The downloaded APK is not signed by the installed Pexpo signing certificate."
@@ -177,11 +177,27 @@ object AppUpdateChecker {
         }
     }
 
-    private val betaPattern = Regex("^(\\d+)\\.(\\d+)\\.(\\d+)-beta\\.(\\d+)$")
-    private fun versionKey(version: String): List<Int> {
-        val m = betaPattern.matchEntire(version)
-        return if (m != null) listOf(m.groupValues[1].toInt(), m.groupValues[2].toInt(), m.groupValues[3].toInt(), 0, m.groupValues[4].toInt())
-        else version.split(".").map { it.toIntOrNull() ?: 0 }.let { listOf(it.getOrElse(0) { 0 }, it.getOrElse(1) { 0 }, it.getOrElse(2) { 0 }, 1, 0) }
+    private data class BetaVersion(
+        val major: Int,
+        val minor: Int,
+        val patch: Int,
+        val beta: Int,
+    ) : Comparable<BetaVersion> {
+        override fun compareTo(other: BetaVersion): Int =
+            compareValuesBy(this, other, BetaVersion::major, BetaVersion::minor, BetaVersion::patch, BetaVersion::beta)
     }
+
+    private val betaPattern = Regex("^(\\d+)\\.(\\d+)\\.(\\d+)-beta\\.(\\d+)$")
+    private fun versionKey(version: String): BetaVersion {
+        val match = betaPattern.matchEntire(version)
+            ?: return BetaVersion(0, 0, 0, 0)
+        return BetaVersion(
+            major = match.groupValues[1].toInt(),
+            minor = match.groupValues[2].toInt(),
+            patch = match.groupValues[3].toInt(),
+            beta = match.groupValues[4].toInt(),
+        )
+    }
+
     private fun isNewer(latest: String, current: String): Boolean = versionKey(latest) > versionKey(current)
 }
