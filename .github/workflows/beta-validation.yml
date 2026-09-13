@@ -33,7 +33,7 @@ jobs:
         run: |
           set -euo pipefail
           grep -F 'applicationId = "com.music.pexpo.beta"' app/build.gradle.kts
-          grep -F 'versionCode = 24' app/build.gradle.kts
+          grep -F 'versionCode = 25' app/build.gradle.kts
           grep -F 'versionName = "1.6.1-beta.1"' app/build.gradle.kts
       - name: Verify no unsafe stream API calls
         shell: bash
@@ -107,7 +107,7 @@ EOF
           test -s "$APK"
           AAPT=$(find "$ANDROID_HOME/build-tools" -type f -name aapt | sort -V | tail -1)
           BADGING=$("$AAPT" dump badging "$APK")
-          echo "$BADGING" | grep -F "package: name='com.music.pexpo.beta' versionCode='24' versionName='1.6.1-beta.1'" >/dev/null
+          echo "$BADGING" | grep -F "package: name='com.music.pexpo.beta' versionCode='25' versionName='1.6.1-beta.1'" >/dev/null
           APK_CERT=$(keytool -printcert -jarfile "$APK" | sed -n 's/^Owner: //p')
           KEY_CERT=$(keytool -list -v -keystore beta-signing.jks -storepass "$BETA_STORE_PASSWORD" -alias "$BETA_KEY_ALIAS" | sed -n 's/^Owner: //p' | head -1)
           test -n "$APK_CERT"
