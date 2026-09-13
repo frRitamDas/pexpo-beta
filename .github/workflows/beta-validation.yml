@@ -5,7 +5,7 @@ on:
     branches: [1.6-beta]
   pull_request:
     branches: [1.6-beta]
-    types: [opened, synchronize, reopened, closed]
+    types: [opened, synchronize, reopened]
   workflow_dispatch:
 
 concurrency:
@@ -14,7 +14,6 @@ concurrency:
 
 jobs:
   validate:
-    if: github.event_name == 'workflow_dispatch' || github.event.action != 'closed' || github.event.pull_request.merged == true
     runs-on: ubuntu-latest
     timeout-minutes: 30
     permissions:
@@ -56,14 +55,14 @@ jobs:
           path: app/build/outputs/apk/dev/debug/*.apk
 
   beta-release:
-    if: github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref == 'refs/heads/1.6-beta') || (github.event_name == 'pull_request' && github.event.action == 'closed' && github.event.pull_request.merged == true)
+    if: github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref == 'refs/heads/1.6-beta')
     needs: validate
     runs-on: ubuntu-latest
     timeout-minutes: 35
     permissions:
       contents: write
     steps:
-      - name: Checkout merged beta
+      - name: Checkout beta
         uses: actions/checkout@v4
         with:
           ref: 1.6-beta
@@ -84,10 +83,10 @@ jobs:
           BETA_KEY_PASSWORD: ${{ secrets.BETA_KEY_PASSWORD }}
         run: |
           set -euo pipefail
-          test -n "$BETA_KEYSTORE_BASE64" || { echo 'Missing BETA_KEYSTORE_BASE64 repository secret.' >&2; exit 1; }
-          test -n "$BETA_STORE_PASSWORD" || { echo 'Missing BETA_STORE_PASSWORD repository secret.' >&2; exit 1; }
-          test -n "$BETA_KEY_ALIAS" || { echo 'Missing BETA_KEY_ALIAS repository secret.' >&2; exit 1; }
-          test -n "$BETA_KEY_PASSWORD" || { echo 'Missing BETA_KEY_PASSWORD repository secret.' >&2; exit 1; }
+          test -n "$BETA_KEYSTORE_BASE64"
+          test -n "$BETA_STORE_PASSWORD"
+          test -n "$BETA_KEY_ALIAS"
+          test -n "$BETA_KEY_PASSWORD"
           printf '%s' "$BETA_KEYSTORE_BASE64" | base64 --decode > beta-signing.jks
           test -s beta-signing.jks
           cat > keystore.properties <<EOF
@@ -96,7 +95,7 @@ storePassword=$BETA_STORE_PASSWORD
 keyAlias=$BETA_KEY_ALIAS
 keyPassword=$BETA_KEY_PASSWORD
 EOF
-      - name: Build isolated signed beta APKs
+      - name: Build signed beta APKs
         run: ./gradlew clean assembleProdRelease --stacktrace
       - name: Verify APK package, version and signing certificate
         shell: bash
@@ -105,7 +104,7 @@ EOF
           BETA_KEY_ALIAS: ${{ secrets.BETA_KEY_ALIAS }}
         run: |
           set -euo pipefail
-          APK="app/build/outputs/apk/prod/release/app-prod-universal-release.apk"
+          APK=app/build/outputs/apk/prod/release/app-prod-universal-release.apk
           test -s "$APK"
           AAPT=$(find "$ANDROID_HOME/build-tools" -type f -name aapt | sort -V | tail -1)
           BADGING=$("$AAPT" dump badging "$APK")
@@ -125,7 +124,7 @@ EOF
           cp app/build/outputs/apk/prod/release/app-prod-armeabi-v7a-release.apk release-assets/pexpo-1.6.1-beta.1-armeabi-v7a.apk
           cp app/build/outputs/apk/prod/release/app-prod-x86_64-release.apk release-assets/pexpo-1.6.1-beta.1-x86_64.apk
           sha256sum release-assets/*.apk > release-assets/SHA256SUMS.txt
-      - name: Upload release APK artifact
+      - name: Upload release artifact
         uses: actions/upload-artifact@v4
         with:
           name: pexpo-1.6.1-beta.1-release
@@ -143,5 +142,5 @@ EOF
             release-assets/pexpo-1.6.1-beta.1-x86_64.apk \
             release-assets/SHA256SUMS.txt \
             --title "Pexpo 1.6.1 Beta 1" \
-            --notes "Pexpo 1.6.1 Beta 1.\n\nThis beta uses the fixed package ID com.music.pexpo.beta and the persistent beta signing identity. Future 1.6.x beta APKs can update this installation in place without uninstalling. Production Pexpo remains com.music.pexpo and is untouched.\n\nUniversal, arm64-v8a, armeabi-v7a and x86_64 APKs plus SHA-256 checksums are attached." \
+            --notes "Pexpo 1.6.1 Beta 1. Persistent beta signing identity. Future 1.6.x beta releases can update this beta installation in place. Production Pexpo remains untouched." \
             --prerelease
