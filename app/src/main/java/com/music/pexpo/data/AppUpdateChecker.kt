@@ -151,7 +151,7 @@ object AppUpdateChecker {
         check(info.packageName == BuildConfig.APPLICATION_ID) { "The downloaded APK belongs to ${info.packageName}, not ${BuildConfig.APPLICATION_ID}." }
         check(info.longVersionCode > BuildConfig.VERSION_CODE) { "The downloaded APK is not newer than the installed Pexpo version." }
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-            val installed = context.packageManager.packageInfoForCurrentApp(PackageManager.GET_SIGNING_CERTIFICATES.toLong()).signingInfo
+            val installed = context.packageManager.packageInfoForCurrentApp(PackageManager.GET_SIGNING_CERTIFICATES).signingInfo
             val candidate = info.signingInfo
             check(installed != null && candidate != null && installed.apkContentsSigners.contentEquals(candidate.apkContentsSigners)) {
                 "The downloaded APK is not signed by the installed Pexpo signing certificate."
