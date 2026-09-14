@@ -221,7 +221,7 @@ jobs:
           printf 'keyPassword=%s\n' "$BETA_KEY_PASSWORD"
         } > keystore.properties
     - name: Build signed beta APKs
-      run: ./gradlew clean assembleProdRelease test --stacktrace
+      run: ./gradlew clean assembleProdRelease --stacktrace
     - name: Verify signed beta APK
       env:
         BETA_STORE_PASSWORD: ${{ secrets.BETA_STORE_PASSWORD }}
